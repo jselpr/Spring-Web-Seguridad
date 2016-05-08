@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xmlns:beans="http://www.springframework.org/schema/beans"
+             xmlns:jee="http://www.springframework.org/schema/jee"
+             xsi:schemaLocation="
+http://www.springframework.org/schema/jee http://www.springframework.org/schema/jee/spring-jee-3.2.xsd
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+       http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-3.2.xsd"> 
+
+    <!-- Activamos el uso de expresiones regulares en las urls con el valor regex. También activamos el uso de expresiones en los atributos access de <intercept-url/>  -->
+    <http request-matcher="regex" use-expressions="true">
+        <!-- Activamos el logado a través de un formulario:
+                login-page -> es la url que muestra el formulario
+                login-processing-url -> es la url a la que debe llamar el formulario para validar el usuario y clave
+                authentication-failure-url -> Url que se llama si no es válido el usuario y la clave
+                default-target-url -> url a la que saltamos si nos validamos correctamente y no se ha solicitado entrar a ninguna url protegida
+                always-use-default-target -> Si es true siempre entraremos a la url por defecto al logarnos correctamente, incluso si hemos pedido una página previamente
+        -->
+        <form-login 
+             login-page="/login.jsp"
+             login-processing-url="/j_spring_security_check"
+             authentication-failure-url="/login.jsp?login_error"
+             default-target-url="/fichero2.jsp"
+             always-use-default-target="false"
+            username-parameter="j_username" 
+            password-parameter="j_password"
+        />
+        <anonymous enabled="true" granted-authority="ROLE_SIN_LOGAR"/>
+        
+        <remember-me  data-source-ref="dataSource"  />
+        <!-- Establecemos que el rol ROLE_USER podrá llamar al fichero1.jsp -->
+        <intercept-url pattern="/fichero1[.]jsp" access="hasRole('ROL_USUARIO')" requires-channel="https"/>
+        <!-- Establecemos que el rol ROLE_ADMIN podrá llamar al fichero2.jsp -->
+        <intercept-url pattern="/fichero2[.]jsp" access="hasRole('ROL_ADMIN')" requires-channel="https"/>
+        <!-- Establecemos que cualquier rol podrá acceder a las urls que estén dentro de la carpeta css-->
+        <intercept-url pattern="/css/*" access="permitAll" requires-channel="https"/>
+        <!-- Creamos la url que al ser invocada nos deslogará -->
+        <logout logout-url="/logout" />
+        <intercept-url pattern="/.*" requires-channel="https"/>
+        <port-mappings>
+	<port-mapping http="8080" https="8181"/>
+    </port-mappings>
+    </http>
+    <!-- El pool de conexiones empleado para logar a los usuarios -->
+    <jee:jndi-lookup id="dataSource" jndi-name="jdbc/sample"/>
+    <!-- Configuramos el gestor de autenticación, responsable de obtener la lista de usuarios válidos. 
+            users-by-username-query devuelve los campos username, password y enabled del usuario buscado. 
+            autorities-by-username-query devuelve los campos username y authority del usuario buscado.
+         Las tablas empleadas están indicadas más abajo
+    -->
+    <authentication-manager>     
+        <authentication-provider>
+            <!-- Configuramos un proveedor basado en jdbc, en data-source-ref indicamos el pool a emplear. Mediante users-by-username-query indicamos la consulta que devuelve -->
+            <jdbc-user-service id="servicioUsuarios" data-source-ref="dataSource" 
+                  users-by-username-query="SELECT usuario as username, clave as password,
+                                           activo as enabled FROM Usuarios WHERE usuario=?" 
+                  authorities-by-username-query="select usuario as username, 
+     AUTHORITY FROM Roles where usuario=?" />
+            
+            <!-- Empleamos md5 para encriptar las claves -->
+            <password-encoder hash="md5"/>            
+        </authentication-provider>          
+    </authentication-manager>
+
+</beans:beans>
+<!--
+LAS TABLAS EN DERBY
+
+CREATE TABLE Usuarios (
+  id integer  NOT NULL primary key
+        GENERATED ALWAYS AS IDENTITY
+        (START WITH 1, INCREMENT BY 1),
+  usuario varchar(255)  NOT NULL,
+  clave varchar(255)  NOT NULL,
+  activo INTEGER NOT NULL
+);
+
+CREATE TABLE Roles (
+  id integer   NOT NULL primary key
+        GENERATED ALWAYS AS IDENTITY
+        (START WITH 1, INCREMENT BY 1),
+  usuario varchar(255)  NOT NULL,
+  AUTHORITY varchar(255)  NOT NULL
+);
+
+fbc71ce36cc20790f2eeed2197898e71 es el valor md5 del literal "clave"
+
+INSERT INTO Usuarios (usuario, clave, activo) 
+	VALUES ('usuario', 'fbc71ce36cc20790f2eeed2197898e71', 1);
+INSERT INTO Usuarios (usuario, clave, activo) 
+	VALUES ('victor', 'fbc71ce36cc20790f2eeed2197898e71', 1);
+INSERT INTO Usuarios (usuario, clave, activo) 
+	VALUES ('becario', 'fbc71ce36cc20790f2eeed2197898e71', 1);
+INSERT INTO roles (usuario, AUTHORITY) 
+	VALUES ('usuario', 'ROL_USUARIO');
+INSERT INTO roles (usuario, AUTHORITY) 
+	VALUES ('victor', 'ROL_ADMIN');
+INSERT INTO roles (usuario, AUTHORITY) 
+	VALUES ('becario', 'ROL_BECARIO');        
+        
+
+-->
